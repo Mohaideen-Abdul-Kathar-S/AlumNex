@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 
+from http.client import HTTPException
 import io
 from PyPDF2 import PdfReader
+from click import File
 from pdf2image import convert_from_bytes
 import pytesseract
 from PIL import Image
@@ -65,6 +67,7 @@ from flask_cors import cross_origin
 
 from dotenv import load_dotenv
 import os
+
 
 load_dotenv()  # This loads variables from .env file
 from flask import send_file, jsonify
@@ -2704,18 +2707,30 @@ FIELDS = [
     "Experience Year", "Working In"
 ]
 
-# ---------------------------
-# 🧾 Upload + Parse Endpoint
-# ---------------------------
-@app.route("/upload-resume", methods=["POST"])
-async def upload_resume(user_id: str = Form(...), file: UploadFile = File(...)) -> Dict[str, Any]:
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Please upload a PDF file.")
+from flask import request, jsonify
+from bson import ObjectId
+import json
 
-    file_bytes = await file.read()
+@app.route("/upload-resume", methods=["POST"])
+def upload_resume():
+
+    user_id = request.form.get("user_id")
+    file = request.files.get("file")
+
+    if not user_id or not file:
+        return jsonify({"message": "user_id and file are required"}), 400
+
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"message": "Please upload a PDF file."}), 400
+
+    file_bytes = file.read()
 
     # 🔹 Delete old resume if exists
-    old_user = db.users.find_one({"_id": user_id})
+    try:
+        old_user = db.users.find_one({"_id": ObjectId(user_id)})
+    except:
+        return jsonify({"message": "Invalid user ID"}), 400
+
     if old_user and "resume" in old_user:
         try:
             fs.delete(ObjectId(old_user["resume"]))
@@ -2723,12 +2738,17 @@ async def upload_resume(user_id: str = Form(...), file: UploadFile = File(...)) 
             pass
 
     # 🔹 Save new resume to GridFS
-    file_id = fs.put(file_bytes, filename=f"{user_id}_resume", content_type=file.content_type)
+    file_id = fs.put(
+        file_bytes,
+        filename=f"{user_id}_resume.pdf",
+        content_type="application/pdf"
+    )
 
     # 🔹 Extract text
     resume_text = extract_text_from_pdf(file_bytes)
+
     if not resume_text:
-        raise HTTPException(status_code=422, detail="No extractable text found in PDF.")
+        return jsonify({"message": "No extractable text found in PDF."}), 422
 
     # 🔹 Ask Gemini to parse
     prompt = f"""
@@ -2744,16 +2764,18 @@ Return JSON ONLY.
 Resume Text:
 {resume_text}
 """
+
     try:
         resp = model.generate_content(prompt)
         parsed = json.loads(resp.text)
 
+        # Ensure all required fields exist
         for k in FIELDS:
             parsed.setdefault(k, "")
 
         # 🔹 Save parsed fields + resume reference into MongoDB
         db.users.update_one(
-            {"_id": user_id},
+            {"_id": ObjectId(user_id)},
             {
                 "$set": {
                     "resume": str(file_id),
@@ -2763,28 +2785,46 @@ Resume Text:
             upsert=True
         )
 
-        return {
+        return jsonify({
             "message": "Resume uploaded and parsed successfully",
             "file_id": str(file_id),
             "parsed_fields": parsed
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gemini error: {e}")
+        }), 200
 
+    except Exception as e:
+        return jsonify({
+            "message": "Gemini parsing failed",
+            "error": str(e)
+        }), 500
+
+
+from flask import jsonify, send_file
+from bson import ObjectId
+import io
 
 @app.route("/get-resume/<user_id>", methods=["GET"])
-def get_resume_by_id(user_id: str):
-    user = db.users.find_one({"_id": user_id})
+def get_resume_by_id(user_id):
+
+    # Convert user_id to ObjectId if your _id is ObjectId
+    try:
+        user = db.users.find_one({"_id": ObjectId(user_id)})
+    except:
+        return jsonify({"message": "Invalid user id"}), 400
+
     if not user or "resume" not in user:
-        return JSONResponse(content={"message": "Resume not found"}, status_code=404)
+        return jsonify({"message": "Resume not found"}), 404
 
-    file_id = ObjectId(user["resume"])
-    file = fs.get(file_id)
+    try:
+        file_id = ObjectId(user["resume"])
+        file = fs.get(file_id)
+    except:
+        return jsonify({"message": "File not found"}), 404
 
-    return StreamingResponse(
+    return send_file(
         io.BytesIO(file.read()),
-        media_type=file.content_type,
-        headers={"Content-Disposition": f"attachment; filename={file.filename}"}
+        download_name=file.filename,
+        mimetype=file.content_type,
+        as_attachment=True
     )
 
 
