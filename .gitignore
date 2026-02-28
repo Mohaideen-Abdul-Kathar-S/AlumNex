@@ -1,0 +1,98 @@
+############################
+# 🔵 FLUTTER / DART
+############################
+
+# Flutter build outputs
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+.dart_tool/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/App.framework
+
+# Android
+android/.gradle/
+android/app/build/
+android/local.properties
+android/key.properties
+
+# MacOS
+macos/Pods/
+
+# Windows
+windows/flutter/ephemeral/
+
+# Linux
+linux/flutter/ephemeral/
+
+# Web
+build/web/
+
+# Dart
+*.dart_tool/
+*.log
+
+############################
+# 🟢 PYTHON / FLASK
+############################
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+
+# Flask instance folder
+instance/
+
+# Logs
+*.log
+
+# Database files
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints/
+
+############################
+# 🔴 IDE / SYSTEM FILES
+############################
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Mac
+.DS_Store
+
+############################
+# 🔐 Secrets
+############################
+
+# Private keys
+*.pem
+*.key
+
+# Firebase / API configs (optional)
+google-services.json
+serviceAccountKey.json
