@@ -7,15 +7,13 @@ from pdf2image import convert_from_bytes
 import pytesseract
 from PIL import Image
 import traceback
-from fastapi import UploadFile, File, HTTPException
+
 import os
 import io
 import json
 from typing import Dict, Any
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+
 
 import google.generativeai as genai
 from PyPDF2 import PdfReader
